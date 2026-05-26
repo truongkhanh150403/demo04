@@ -5,8 +5,7 @@ import ssl
 import urllib.error
 import urllib.request
 
-URL = "https://data.kcg.gov.tw/File/DirectDownload/80bbbbd3-9ee4-4244-98e9-b4c08deda91b"
-MAX_ROWS = 10
+URL = "https://data.ntpc.gov.tw/api/datasets/781b822e-214a-4b9a-b4db-32c9f4626d98/csv/file"
 
 
 def fetch_data(url: str) -> tuple[bytes, str]:
@@ -48,8 +47,8 @@ def show_json(text: str) -> bool:
 
     if isinstance(data, list):
         print(f"總筆數: {len(data)}")
-        print(f"顯示前 {min(MAX_ROWS, len(data))} 筆:\n")
-        for i, item in enumerate(data[:MAX_ROWS], start=1):
+        print("完整資料如下:\n")
+        for i, item in enumerate(data, start=1):
             print(f"[{i}] {json.dumps(item, ensure_ascii=False, indent=2)}")
     elif isinstance(data, dict):
         print(json.dumps(data, ensure_ascii=False, indent=2))
@@ -79,9 +78,9 @@ def show_csv(text: str) -> bool:
     print("=== 偵測到 CSV 資料 ===")
     print(f"欄位數: {len(headers)}")
     print(f"資料筆數: {len(data_rows)}")
-    print(f"顯示前 {min(MAX_ROWS, len(data_rows))} 筆:\n")
+    print("完整資料如下:\n")
 
-    for i, row in enumerate(data_rows[:MAX_ROWS], start=1):
+    for i, row in enumerate(data_rows, start=1):
         print(f"[{i}]")
         for h, v in zip(headers, row):
             print(f"  {h}: {v}")
@@ -94,8 +93,8 @@ def show_plain_text(text: str) -> None:
     lines = text.splitlines()
     print("=== 文字資料 ===")
     print(f"總行數: {len(lines)}")
-    print(f"顯示前 {min(MAX_ROWS, len(lines))} 行:\n")
-    for i, line in enumerate(lines[:MAX_ROWS], start=1):
+    print("完整資料如下:\n")
+    for i, line in enumerate(lines, start=1):
         print(f"{i:>2}: {line}")
 
 
