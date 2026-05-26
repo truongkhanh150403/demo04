@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>高雄/開放資料查詢網站</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Flask Website</p>
+          <h1>開放資料即時檢視頁</h1>
+          <p class="lead">
+            直接從資料來源抓取內容，並依據格式自動呈現為表格、JSON 或純文字。
+          </p>
+        </div>
+        <div class="source-card">
+          <span class="source-label">資料來源</span>
+          <a href="{{ source_url }}" target="_blank" rel="noreferrer">{{ source_url }}</a>
+          <div class="meta-row">
+            <span>狀態</span>
+            <strong>{{ content_type or '未知' }}</strong>
+          </div>
+        </div>
+      </section>
+
+      {% if error_message %}
+        <section class="panel error-panel">
+          <h2>讀取失敗</h2>
+          <p>{{ error_message }}</p>
+        </section>
+      {% else %}
+        {% if kind == 'csv' %}
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>CSV 資料表</h2>
+                <p>共 {{ row_count }} 筆資料，現在顯示第 {{ page }} / {{ total_pages }} 頁，每頁 {{ per_page }} 筆</p>
+              </div>
+              <form class="page-size-form" method="get">
+                <input type="hidden" name="page" value="1" />
+                <label for="per_page">每頁筆數</label>
+                <select id="per_page" name="per_page" onchange="this.form.submit()">
+                  {% for size in [5, 10, 20, 50] %}
+                    <option value="{{ size }}" {% if size == per_page %}selected{% endif %}>{{ size }}</option>
+                  {% endfor %}
+                </select>
+              </form>
+            </div>
+            <div class="card-list">
+              {% for row in paginated_rows %}
+                <article class="data-card">
+                  <header class="data-card-head">
+                    <span class="card-index">#{{ start_index + loop.index }}</span>
+                  </header>
+                  <div class="field-list">
+                    {% for header in headers %}
+                      <div class="field-row">
+                        <span class="field-name">{{ header }}</span>
+                        <span class="field-value">{{ row[header] }}</span>
+                      </div>
+                    {% endfor %}
+                  </div>
+                </article>
+              {% endfor %}
+            </div>
+            <nav class="pagination" aria-label="分頁控制">
+              <a class="page-link {% if page == 1 %}disabled{% endif %}" href="{{ url_for('index', page=page - 1, per_page=per_page) }}">上一頁</a>
+              {% for number in page_numbers %}
+                <a class="page-link {% if number == page %}active{% endif %}" href="{{ url_for('index', page=number, per_page=per_page) }}">{{ number }}</a>
+              {% endfor %}
+              <a class="page-link {% if page == total_pages %}disabled{% endif %}" href="{{ url_for('index', page=page + 1, per_page=per_page) }}">下一頁</a>
+            </nav>
+          </section>
+        {% elif kind == 'json' %}
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>JSON 資料</h2>
+                <p>自動格式化顯示</p>
+              </div>
+            </div>
+            <pre class="code-block">{{ json_text }}</pre>
+          </section>
+        {% else %}
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>純文字資料</h2>
+                <p>共 {{ lines|length }} 行</p>
+              </div>
+            </div>
+            <pre class="code-block">{% for line in lines %}{{ loop.index }}. {{ line }}
+{% endfor %}</pre>
+          </section>
+        {% endif %}
+      {% endif %}
+    </main>
+  </body>
+</html>

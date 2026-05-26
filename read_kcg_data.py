@@ -1,11 +1,16 @@
 import csv
 import io
 import json
+import math
 import ssl
 import urllib.error
 import urllib.request
 
+from flask import Flask, render_template, request
+
 URL = "https://data.ntpc.gov.tw/api/datasets/781b822e-214a-4b9a-b4db-32c9f4626d98/csv/file"
+
+app = Flask(__name__)
 
 
 def fetch_data(url: str) -> tuple[bytes, str]:
@@ -98,26 +103,113 @@ def show_plain_text(text: str) -> None:
         print(f"{i:>2}: {line}")
 
 
-def main() -> None:
-    print(f"正在下載資料: {URL}")
+def build_csv_rows(headers: list[str], data_rows: list[list[str]]) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for row in data_rows:
+        rows.append(
+            {
+                header: row[index] if index < len(row) else ""
+                for index, header in enumerate(headers)
+            }
+        )
+    return rows
 
-    try:
-        raw, content_type = fetch_data(URL)
-    except urllib.error.URLError as e:
-        print(f"下載失敗: {e}")
-        return
 
+def load_dataset(url: str) -> dict[str, object]:
+    raw, content_type = fetch_data(url)
     text = decode_text(raw)
-    print(f"下載成功，Content-Type: {content_type}\n")
 
-    if "json" in content_type.lower() and show_json(text):
-        return
-    if show_json(text):
-        return
-    if show_csv(text):
-        return
+    if "json" in content_type.lower():
+        return {
+            "kind": "json",
+            "content_type": content_type,
+            "raw_text": text,
+            "json_text": json.dumps(json.loads(text), ensure_ascii=False, indent=2),
+        }
 
-    show_plain_text(text)
+    sample = text[:2048]
+    try:
+        dialect = csv.Sniffer().sniff(sample)
+    except csv.Error:
+        dialect = csv.excel
+
+    reader = csv.reader(io.StringIO(text), dialect)
+    rows = list(reader)
+    if rows and len(rows[0]) > 1:
+        headers = rows[0]
+        data_rows = rows[1:]
+        return {
+            "kind": "csv",
+            "content_type": content_type,
+            "raw_text": text,
+            "headers": headers,
+            "rows": build_csv_rows(headers, data_rows),
+            "row_count": len(data_rows),
+        }
+
+    return {
+        "kind": "text",
+        "content_type": content_type,
+        "raw_text": text,
+        "lines": text.splitlines(),
+    }
+
+
+def paginate_rows(rows: list[dict[str, str]], page: int, per_page: int) -> tuple[list[dict[str, str]], int, int]:
+    total_rows = len(rows)
+    total_pages = max(1, math.ceil(total_rows / per_page))
+    current_page = min(max(page, 1), total_pages)
+    start = (current_page - 1) * per_page
+    end = start + per_page
+    return rows[start:end], current_page, total_pages
+
+
+@app.route("/")
+def index() -> str:
+    try:
+        dataset = load_dataset(URL)
+        error_message = None
+    except urllib.error.URLError as e:
+        dataset = {
+            "kind": "error",
+            "content_type": "",
+            "raw_text": "",
+        }
+        error_message = f"下載失敗：{e}"
+
+    page = request.args.get("page", default=1, type=int)
+    per_page = request.args.get("per_page", default=10, type=int)
+    per_page = min(max(per_page, 5), 50)
+
+    paginated_rows: list[dict[str, str]] = []
+    start_index = 0
+    total_pages = 1
+    current_page = 1
+
+    if dataset.get("kind") == "csv":
+        all_rows = dataset.get("rows", [])
+        if isinstance(all_rows, list):
+            paginated_rows, current_page, total_pages = paginate_rows(all_rows, page, per_page)
+            start_index = (current_page - 1) * per_page
+
+    page_numbers = list(range(max(1, current_page - 2), min(total_pages, current_page + 2) + 1))
+
+    return render_template(
+        "index.html",
+        source_url=URL,
+        error_message=error_message,
+        page=current_page,
+        per_page=per_page,
+        total_pages=total_pages,
+        page_numbers=page_numbers,
+        start_index=start_index,
+        paginated_rows=paginated_rows,
+        **dataset,
+    )
+
+
+def main() -> None:
+    app.run(host="127.0.0.1", port=5000, debug=True)
 
 
 if __name__ == "__main__":
